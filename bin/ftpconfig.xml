@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">  
+<properties>  
+<comment>ftpInfo</comment>  
+<entry key="host">192.168.199.215</entry>  
+<entry key="ftpUserName">webftp</entry>
+<entry key="ftpPassword">webftp</entry> 
+<entry key="ftpPort">21</entry> 
+</properties>
