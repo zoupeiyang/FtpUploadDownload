@@ -9,6 +9,8 @@ import java.io.RandomAccessFile;
 import java.net.ConnectException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -47,50 +49,93 @@ public class FtpUtils {
 		this.ftpClient = initFtpClient();
 	}
 
-	public Collection<String> uploadFiles(String localPath, String remotePath,
-			Collection<String> uploadStatusMessages) throws Exception {
-		if (uploadStatusMessages == null)
-			uploadStatusMessages = new ArrayList<String>();
+	public Map<String, Collection<String>> uploadFiles(String localPath,
+			String remotePath, Map<String, Collection<String>> messages)
+			throws Exception {
+		if (messages == null) {
+			messages = new HashMap<String, Collection<String>>();
+			messages.put("success", new ArrayList<String>());
+			messages.put("fail", new ArrayList<String>());
+		}
 		FtpStatus ftpStatus = createDirectory(remotePath, ftpClient);
 		if (ftpStatus == FtpStatus.CREATE_DIRECTORY_FAIL) {
-			uploadStatusMessages.add("创建远程目录失败" + remotePath);
-			return uploadStatusMessages;
+			logger.error("创建远程目录失败" + remotePath);
+			return messages;
 		} else if (ftpStatus == FtpStatus.CREATE_DIRECTORY_SUCCESS) {
-			uploadStatusMessages.add("创建远程目录成功" + remotePath);
+			logger.info("创建远程目录成功" + remotePath);
 		}
 		File file = new File(localPath);
 		File[] files = file.listFiles();
 		for (File f : files) {
 			if (f.isFile()) {
 				String fileName = f.getName();
+				String uploadMessage;
 				ftpStatus = uploadFile(fileName, f, 0);
-				if (ftpStatus == FtpStatus.UPLOAD_FILE_SUCCESS)
-					uploadStatusMessages
-							.add("上传文件成功：" + localPath + SEPARATOR + fileName
-									+ " -->> " + remotePath + "/" + fileName);
+				if (ftpStatus == FtpStatus.UPLOAD_FILE_SUCCESS) {
+					uploadMessage = "上传文件成功：" + localPath + SEPARATOR
+							+ fileName + " -->> " + remotePath + "/" + fileName;
+					messages.get("success").add(uploadMessage);
+				}
+
 				else {
-					uploadStatusMessages
-							.add("上传文件失败：" + localPath + SEPARATOR + fileName
-									+ " -->> " + remotePath + "/" + fileName);
+					uploadMessage = "上传文件失败：" + localPath + SEPARATOR
+							+ fileName + " -->> " + remotePath + "/" + fileName;
+					messages.get("fail").add(uploadMessage);
 				}
 			} else {
 				this.uploadFiles(localPath + SEPARATOR + f.getName(),
-						remotePath + SEPARATOR + f.getName(),
-						uploadStatusMessages);
+						remotePath + "/" + f.getName(), messages);
 				ftpClient.changeWorkingDirectory(remotePath);
 			}
 		}
 
-		return uploadStatusMessages;
+		return messages;
 	}
 
-	public Collection<String> downloadFiles(String localPath,
-			String remotePath, Collection<String> messages) throws IOException {
-		if (messages == null)
-			messages = new ArrayList<String>();
+	/**
+	 * 批量上传
+	 * @param localPath
+	 * @param remotePath
+	 * @return
+	 * @throws Exception
+	 */
+	public String uploadFiles(String localPath,String remotePath) throws Exception {
+		Map<String, Collection<String>> uploadMessages = uploadFiles(localPath, remotePath, null);
+		String result="共上传0个文件";
+		if(uploadMessages!=null)
+		{
+			int successCount = uploadMessages.get("success").size();
+			int failCount = uploadMessages.get("fail").size();
+			result = "共上传文件" + (successCount + failCount) + "个，其中成功上传文件"
+					+ successCount + "个，失败上传文件" + failCount + "个";
+		}
+		logger.info(result);
+		return result;
+	}
+	
+	/**
+	 * 从服务器批量下载文件
+	 * 
+	 * @param localPath
+	 *            本地路径
+	 * @param remotePath
+	 *            远程路径
+	 * @param messages
+	 *            下载状态信息
+	 * @return 下载状态信息
+	 * @throws IOException
+	 */
+	public Map<String, Collection<String>> downloadFiles(String localPath,
+			String remotePath, Map<String, Collection<String>> messages)
+			throws IOException {
+		if (messages == null) {
+			messages = new HashMap<String, Collection<String>>();
+			messages.put("success", new ArrayList<String>());
+			messages.put("fail", new ArrayList<String>());
+		}
+
 		this.ftpClient.changeWorkingDirectory(remotePath);
 		FTPFile[] ftpFiles = this.ftpClient.listFiles();
-
 		if (!ArrayUtils.isEmpty(ftpFiles)) {
 			FtpStatus downStatus = FtpStatus.DOWNLOAD_FILE_FAIL;
 			for (FTPFile ftpFile : ftpFiles) {
@@ -99,15 +144,21 @@ public class FtpUtils {
 				String newLocalPath = localPath + SEPARATOR + fileName;
 				if (ftpFile.isFile()) {
 					downStatus = downloadFile(newLocalPath, newRemotePath);
+					String downloadMessage = newLocalPath + "<<--"
+							+ newRemotePath;
 					if (downStatus == FtpStatus.DOWNLOAD_FILE_SUCCESS) {
-						String succString = newLocalPath + "<<--"
-								+ newRemotePath + "\r\n";
-						messages.add(succString);
+						messages.get("success").add(downloadMessage);
+
+					} else {
+						messages.get("fail").add(downloadMessage);
+
 					}
 				} else {
 					File file = new File(newLocalPath);
+					// 如果本地不存在远程对应的目录，则创建目录
 					if (file != null && !file.exists())
 						file.mkdirs();
+					// 通过递归下载该目录下所有文件
 					downloadFiles(newLocalPath, newRemotePath, messages);
 					this.ftpClient.changeWorkingDirectory(remotePath);
 				}
@@ -116,8 +167,41 @@ public class FtpUtils {
 		return messages;
 	}
 
+	/**
+	 * 从服务器批量下载文件
+	 * 
+	 * @param localPath
+	 * @param remotePath
+	 * @return
+	 * @throws IOException
+	 */
+	public String downloadFiles(String localPath, String remotePath)
+			throws IOException {
+		Map<String, Collection<String>> downloadMessages = downloadFiles(
+				localPath, remotePath, null);
+		String result = "共下载文件0个";
+		if (downloadMessages != null) {
+			int successCount = downloadMessages.get("success").size();
+			int failCount = downloadMessages.get("fail").size();
+			result = "共下载文件" + (successCount + failCount) + "个，其中成功下载文件"
+					+ successCount + "个，失败下载文件" + failCount + "个";
+		}
+		logger.info(result);
+		return result;
+
+	}
+
+	/**
+	 * 下载文件
+	 * 
+	 * @param localFilePath
+	 * @param remoteFilePath
+	 * @return
+	 * @throws IOException
+	 */
 	public FtpStatus downloadFile(String localFilePath, String remoteFilePath)
 			throws IOException {
+		// logger.info(remoteFilePath+" 当前正在下载");
 		ftpClient.enterLocalPassiveMode();
 		ftpClient.setFileType(FTP.BINARY_FILE_TYPE);
 		FtpStatus result;
@@ -145,7 +229,7 @@ public class FtpUtils {
 				if (nowProcess > process) {
 					process = nowProcess;
 					if (process % 10 == 0) {
-						System.out.println("下载进度：" + process + "%");
+						logger.info(remoteFilePath + " 文件下载进度" + process + "%");
 					}
 				}
 			}
@@ -171,7 +255,7 @@ public class FtpUtils {
 				if (nowProcess > process) {
 					process = nowProcess;
 					if (process % 10 == 0) {
-						System.out.println("下载进度" + process + "%");
+						logger.info(remoteFilePath + " 文件下载进度" + process + "%");
 					}
 				}
 			}
@@ -206,10 +290,6 @@ public class FtpUtils {
 		long localreadbytes = 0L;
 		RandomAccessFile raf = new RandomAccessFile(localFile, "r");
 		OutputStream out = ftpClient.appendFileStream(remoteFile);
-		if (out == null) {
-			String message = ftpClient.getReplyString();
-			throw new RuntimeException(message);
-		}
 		if (remoteSize > 0) {
 			ftpClient.setRestartOffset(remoteSize);
 			process = remoteSize * 100 / localFile.length();
@@ -223,7 +303,7 @@ public class FtpUtils {
 			localreadbytes += c;
 			if (localreadbytes * 100 / localFile.length() != process) {
 				process = localreadbytes * 100 / localFile.length();
-				System.out.println("上传进度:" + process + "%");
+				logger.info(localFile + " 文件上传进度" + process + "%");
 			}
 		}
 		out.flush();
