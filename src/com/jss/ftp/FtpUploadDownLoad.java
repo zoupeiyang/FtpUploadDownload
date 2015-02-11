@@ -9,7 +9,8 @@ public class FtpUploadDownLoad {
 	public static void main(String[] args) throws Exception {
 		Properties properties = FtpConfig.getProperties("src/ftpconfig.xml");
 		FtpUtils ftpUtils = new FtpUtils(properties.getProperty("host"), properties.getProperty("ftpUserName"), properties.getProperty("ftpPassword"), properties.getProperty("ftpPort"));
-		String result =ftpUtils.uploadFiles("D:\\ftptest2\\zentao3", "/var/www/abc");
+		//String result =ftpUtils.uploadFiles("D:\\ftptest2\\zentao3", "/var/www/abc");
+		String result =ftpUtils.downloadFiles("D:\\ftptest2\\zentao3", "/shangwukuaiche");
 		System.out.println(result);
 
 	}

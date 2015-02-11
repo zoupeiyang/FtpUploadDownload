@@ -94,16 +94,18 @@ public class FtpUtils {
 
 	/**
 	 * 批量上传
+	 * 
 	 * @param localPath
 	 * @param remotePath
 	 * @return
 	 * @throws Exception
 	 */
-	public String uploadFiles(String localPath,String remotePath) throws Exception {
-		Map<String, Collection<String>> uploadMessages = uploadFiles(localPath, remotePath, null);
-		String result="共上传0个文件";
-		if(uploadMessages!=null)
-		{
+	public String uploadFiles(String localPath, String remotePath)
+			throws Exception {
+		Map<String, Collection<String>> uploadMessages = uploadFiles(localPath,
+				remotePath, null);
+		String result = "共上传0个文件";
+		if (uploadMessages != null) {
 			int successCount = uploadMessages.get("success").size();
 			int failCount = uploadMessages.get("fail").size();
 			result = "共上传文件" + (successCount + failCount) + "个，其中成功上传文件"
@@ -112,7 +114,7 @@ public class FtpUtils {
 		logger.info(result);
 		return result;
 	}
-	
+
 	/**
 	 * 从服务器批量下载文件
 	 * 
@@ -358,7 +360,7 @@ public class FtpUtils {
 	public FTPClient initFtpClient() throws IOException {
 		FTPClient ftp = new FTPClient();
 		try {
-			ftp.setDataTimeout(7200);
+			ftp.setDataTimeout(72000);
 			ftp.setControlEncoding(DEAFULT_REMOTE_CHARSET);
 			ftp.setDefaultPort(DEAFULT_REMOTE_PORT);
 			ftp.setListHiddenFiles(false);
